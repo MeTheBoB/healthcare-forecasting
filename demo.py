@@ -14,7 +14,7 @@ st.set_page_config(layout="wide", page_title="NHS A&E Forecasting")
 
 @st.cache_data
 def load_and_group_data():
-    path = r"C:\Users\DELL\Desktop\Uni25-26\Project\work\DATA\processedData\finalData.csv"
+    path = "finalData.csv"
     df = pd.read_csv(path) 
     # Use dayfirst=True for UK date formats
     df['MonthYear'] = pd.to_datetime(df['MonthYear'], dayfirst=True)
@@ -215,4 +215,5 @@ with center_col:
         if not df_filtered.empty:
             table_display = df_filtered.copy()
             table_display['MonthYear'] = table_display['MonthYear'].dt.strftime('%Y-%m')
+
             st.dataframe(table_display, use_container_width=True)
