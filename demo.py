@@ -14,7 +14,8 @@ st.set_page_config(layout="wide", page_title="NHS A&E Forecasting")
 
 @st.cache_data
 def load_and_group_data():
-    path = "finalData.csv"
+    # Update this path for your local environment or use the filename for Cloud deployment
+    path = "finalData.csv" 
     df = pd.read_csv(path) 
     # Use dayfirst=True for UK date formats
     df['MonthYear'] = pd.to_datetime(df['MonthYear'], dayfirst=True)
@@ -23,6 +24,7 @@ def load_and_group_data():
 
 # Initialize data and global variables
 df_raw = load_and_group_data()
+# Narrowing data to start from 2022-01-01 to avoid pandemic outliers
 df_raw = df_raw[df_raw["MonthYear"] >= "2022-01-01"]
 df_filtered = pd.DataFrame()
 df_actual_comparison = pd.DataFrame()
@@ -82,6 +84,17 @@ with center_col:
         kcols[5].metric("Within 4h %", f"{round(float(kpi_vals['Within_4h_%']), 2)}%")
         kcols[6].metric("Over 4h %", f"{round(100 - float(kpi_vals['Within_4h_%']), 2)}%")
 
+        # --- 3b. Baseline Trend Visualization ---
+        st.subheader("Historical Attendance Trend")
+        baseline_data = df_filtered.groupby('MonthYear')['Total Attendances'].sum().reset_index()
+        
+        fig_base, ax_base = plt.subplots(figsize=(14, 4))
+        sns.lineplot(x='MonthYear', y='Total Attendances', data=baseline_data, color='black', marker='o')
+        ax_base.yaxis.set_major_formatter(mticker.FuncFormatter(lambda x, _: f'{x/1e6:.2f}M'))
+        ax_base.set_ylabel("Attendances (Millions)")
+        plt.xticks(rotation=45)
+        st.pyplot(fig_base)
+
     st.markdown("---")
 
     # --- 4. Forecasting Logic ---
@@ -90,7 +103,6 @@ with center_col:
         with st.spinner(f'Calculating Triple-Model Forecast & Admissions Regression...'):
             
             # --- LINEAR REGRESSION TRAINING ---
-            # Train using aggregated historical attendances vs admissions
             lr_train_data = df_filtered.groupby('MonthYear').agg({
                 'Total Attendances': 'sum',
                 'Total Emergency Admissions': 'sum'
@@ -174,7 +186,6 @@ with center_col:
             hist_attend = agg_train.copy()
             hist_attend['Total'] = hist_attend[targets].sum(axis=1)
             
-            # Connection point
             conn_attend = pd.DataFrame({'ds': [end_dt], 'ForecastAttendances': [hist_attend['Total'].iloc[-1]]})
             plot_attend = pd.concat([conn_attend, total_forecast[['ds', 'ForecastAttendances']]])
 
@@ -189,12 +200,10 @@ with center_col:
             st.pyplot(fig1)
 
             # --- 8. Admissions Chart (CONNECTED) ---
-            
             st.subheader("Emergency Admissions Analysis: Actuals vs. Linear Regression Predictions")
             fig2, ax2 = plt.subplots(figsize=(14, 5))
             hist_admit = df_filtered.groupby('MonthYear')['Total Emergency Admissions'].sum().reset_index()
             
-            # Connection point
             conn_admit = pd.DataFrame({'ds': [end_dt], 'PredictedAdmissions': [hist_admit['Total Emergency Admissions'].iloc[-1]]})
             plot_admit = pd.concat([conn_admit, total_forecast[['ds', 'PredictedAdmissions']]])
 
@@ -215,5 +224,4 @@ with center_col:
         if not df_filtered.empty:
             table_display = df_filtered.copy()
             table_display['MonthYear'] = table_display['MonthYear'].dt.strftime('%Y-%m')
-
             st.dataframe(table_display, use_container_width=True)
